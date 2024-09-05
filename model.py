@@ -215,7 +215,7 @@ class LlamaDecoderLayer(nn.Module):
         return hidden_states, present_key_value
 
 
-class LlamaModel(nn.Module):
+class LlamaTorchModel(nn.Module):
     def __init__(self, config):
         super().__init__()
         self.embed_tokens = nn.Embedding(config.vocab_size, config.hidden_size, padding_idx=config.pad_token_id)
@@ -291,7 +291,7 @@ class LlamaModel(nn.Module):
 class LlamaCausalModel(PreTrainedModel):
     def __init__(self, config):
         super().__init__(config)
-        self.model = LlamaModel(config)
+        self.model = LlamaTorchModel(config)
         self.lm_head = nn.Linear(config.hidden_size, config.vocab_size, bias=False)
 
         self.post_init()
@@ -351,14 +351,11 @@ class LlamaCausalModel(PreTrainedModel):
                                       attention_mask=None, 
                                       past_key_values=None,
                                       use_cache=None):
-        if past_key_values: 
-            input_ids = input_ids[:, -1:]
-
-        next_model_inputs = {
-            'input_ids': input_ids, 
+        model_inputs = {
+            'input_ids': input_ids[:, -1:] if past_key_values else input_ids, 
             'attention_mask': attention_mask, 
             'past_key_values': past_key_values,
             'use_cache': use_cache
         } 
-        return next_model_inputs 
+        return model_inputs 
     

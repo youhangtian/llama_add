@@ -3,10 +3,6 @@ import numpy as np
 import torch 
 from torch.utils.data import Dataset, DataLoader 
 
-words = '<PAD>,<BOS>,<EOS>,1,2,3,4,5,6,7,8,9,0,+,='
-vocab = {word: i for i, word in enumerate(words.split(','))}
-vocab_r = [k for k, v in vocab.items()]
-
 def get_data(min_length=10, max_length=20):
     words = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9']
     p = np.array([7, 5, 5, 7, 6, 5, 7, 6, 5, 7])
@@ -15,86 +11,76 @@ def get_data(min_length=10, max_length=20):
     n1 = random.randint(min_length, max_length)
     s1 = np.random.choice(words, size=n1, replace=True, p=p)
     s1 = s1.tolist()
+    i1 = int(''.join(s1))
 
     n2 = random.randint(min_length, max_length)
     s2 = np.random.choice(words, size=n2, replace=True, p=p)
     s2 = s2.tolist()
+    i2 = int(''.join(s2))
 
-    x = ['<BOS>'] + s1 + ['+'] + s2 + ['=']
-
-    y = int(''.join(s1)) + int(''.join(s2))
-    y = list(str(y)) + ['<EOS>']
+    x = f'{i1}+{i2}='
+    y = f'{i1+i2}'
 
     return x, y
 
+
 class TwoSumDataset(Dataset):
-    def __init__(self, size=100000, min_length=10, max_length=20):
+    def __init__(self, size=100000):
         super(Dataset, self).__init__()
         self.size = size 
-        self.min_length = min_length 
-        self.max_length = max_length 
+        
+        self.words = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9']
+        p = np.array([7, 5, 5, 7, 6, 5, 7, 6, 5, 7])
+        self.p = p / p.sum()
 
     def __len__(self):
         return self.size 
 
     def __getitem__(self, i):
-        x, y = get_data(self.min_length, self.max_length)
-
-        context_ids = [vocab[i] for i in x]
-        target_ids = [vocab[i] for i in y]
-
-        input_ids = context_ids + target_ids 
-
-        labels = [-100] * len(context_ids) + target_ids 
-        masks = [0 if t==vocab['<PAD>'] else 1 for t in input_ids]
-
-        example = {'input_ids': input_ids,
-                   'labels': labels,
-                   'attention_mask': masks}
-        
-        return example
-    
-def data_collator(examples):
-    len_ids = [len(example['input_ids']) for example in examples]
-    longest = max(len_ids)
-
-    input_ids = []
-    labels_list = []
-    masks_list = []
-
-    for length, example in sorted(zip(len_ids, examples), key=lambda x: -x[0]):
-        ids = example['input_ids']
-        labs = example['labels']
-        masks = example['attention_mask']
-
-        ids = [vocab['<PAD>']] * (longest - length) + ids 
-        labs = [-100] * (longest - length) + labs 
-        masks = [0] * (longest - length) + masks 
-
-        input_ids.append(torch.LongTensor(ids))
-        labels_list.append(torch.LongTensor(labs))
-        masks_list.append(torch.LongTensor(masks))
-
-    input_ids = torch.stack(input_ids)
-    labels = torch.stack(labels_list)
-    attention_mask = torch.stack(masks_list)
-
-    return {
-        'input_ids': input_ids.cuda(),
-        'labels': labels.cuda(),
-        'attention_mask': attention_mask.cuda()
-    }
+        x, y = get_data()
+        return {'xy': x+y, 'y': y}
 
 
-def get_dataloader(batch_size=64):
+def get_dataloader(batch_size=64, tokenizer=None):
     train_ds = TwoSumDataset(size=100000)
+
+    def data_collator(items, tokenizer=tokenizer):
+        xys = [item['xy'] for item in items]
+        ys = [item['y'] for item in items]
+
+        xys_ids = tokenizer.encode_batch(xys, add_special_tokens=True, enable_padding=True)
+        ys_ids = tokenizer.encode_batch(ys, add_special_tokens=False, enable_padding=False)
+
+        input_ids = []
+        labels = []
+        attention_mask = []
+
+        for i in range(len(xys_ids)):
+            xy_ids = xys_ids[i] + [tokenizer.eos_id]
+            y_ids = ys_ids[i] + [tokenizer.eos_id]
+            y_ids = [-100] * (len(xy_ids) - len(y_ids)) + y_ids
+            mask = [0 if i == tokenizer.pad_id else 1 for i in xy_ids]
+
+            input_ids.append(torch.LongTensor(xy_ids))
+            labels.append(torch.LongTensor(y_ids))
+            attention_mask.append(torch.LongTensor(mask))
+
+        input_ids = torch.stack(input_ids)
+        labels = torch.stack(labels)
+        attention_mask = torch.stack(attention_mask)
+
+        batch = {'input_ids': input_ids.cuda(),
+                'labels': labels.cuda(),
+                'attention_mask': attention_mask.cuda()}
+        
+        return batch
 
     train_dl = DataLoader(
         dataset=train_ds,
         batch_size=batch_size,
         drop_last=True,
         shuffle=True,
-        collate_fn=data_collator 
+        collate_fn=data_collator
     )
 
     return train_dl
