@@ -10,28 +10,21 @@ def get_data(min_length=10, max_length=20):
 
     n1 = random.randint(min_length, max_length)
     s1 = np.random.choice(words, size=n1, replace=True, p=p)
-    s1 = s1.tolist()
-    i1 = int(''.join(s1))
+    i1 = int(''.join(s1.tolist()))
 
     n2 = random.randint(min_length, max_length)
     s2 = np.random.choice(words, size=n2, replace=True, p=p)
-    s2 = s2.tolist()
-    i2 = int(''.join(s2))
+    i2 = int(''.join(s2.tolist()))
 
     x = f'{i1}+{i2}='
     y = f'{i1+i2}'
 
     return x, y
 
-
 class TwoSumDataset(Dataset):
     def __init__(self, size=100000):
         super(Dataset, self).__init__()
         self.size = size 
-        
-        self.words = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9']
-        p = np.array([7, 5, 5, 7, 6, 5, 7, 6, 5, 7])
-        self.p = p / p.sum()
 
     def __len__(self):
         return self.size 
@@ -39,10 +32,9 @@ class TwoSumDataset(Dataset):
     def __getitem__(self, i):
         x, y = get_data()
         return {'xy': x+y, 'y': y}
-
-
-def get_dataloader(batch_size=64, tokenizer=None):
-    train_ds = TwoSumDataset(size=100000)
+    
+def get_dataloader(batch_size=64, tokenizer=None):        
+    train_ds = TwoSumDataset()
 
     def data_collator(items, tokenizer=tokenizer):
         xys = [item['xy'] for item in items]

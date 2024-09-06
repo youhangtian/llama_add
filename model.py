@@ -313,6 +313,7 @@ class LlamaCausalModel(PreTrainedModel):
                 attention_mask=None,
                 past_key_values=None,
                 use_cache=None,
+                cache_position=None,
                 return_dict=None,
                 output_attentions=None,
                 output_hidden_states=None):
@@ -350,12 +351,14 @@ class LlamaCausalModel(PreTrainedModel):
                                       input_ids, 
                                       attention_mask=None, 
                                       past_key_values=None,
-                                      use_cache=None):
+                                      use_cache=None,
+                                      cache_position=None):
         model_inputs = {
             'input_ids': input_ids[:, -1:] if past_key_values else input_ids, 
             'attention_mask': attention_mask, 
             'past_key_values': past_key_values,
-            'use_cache': use_cache
+            'use_cache': use_cache,
+            'cache_position': cache_position
         } 
         return model_inputs 
     
